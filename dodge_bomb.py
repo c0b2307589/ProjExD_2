@@ -54,7 +54,7 @@ def game_over(screen: pg.Surface) -> None:
 
     
     pg.display.update()
-    pg.time.wait(3000)  # 3秒間停止
+    pg.time.wait(5000)  # 5秒間停止
 
 
 def init_bb_imgs() -> tuple[list[pg.Surface], list[int]]:
@@ -85,6 +85,11 @@ def main():
 
     clock = pg.time.Clock()
     tmr = 0
+    muki = 0
+    sayu = False
+    
+
+
 
     while True:
         for event in pg.event.get():
@@ -102,12 +107,29 @@ def main():
         sum_mv = [0, 0]
         for key, tpl in DELTA.items():
             if key_lst[key]:
+
                 sum_mv[0] += tpl[0]
                 sum_mv[1] += tpl[1]
+                if tpl == (0, -5):  # 上
+                    muki = 0
+                elif tpl == (-5,-5):  #左上
+                    muki = -45
+                elif tpl == (0, 5):  # 下
+                    muki = 180
+                elif tpl == (-5,5):
+                    muki = -225
+                elif tpl == (-5,0):  #左
+                    muki = 0
+                elif tpl == (5, 0):  # 右
+                    muki = -180
+    
         kk_rct.move_ip(sum_mv)
         if check_bound(kk_rct) != (True, True):
             kk_rct.move_ip(-sum_mv[0], -sum_mv[1])
-        screen.blit(kk_img, kk_rct)
+        
+        rotated_kk_img = pg.transform.rotate(kk_img,muki)
+        rotated_kk_rct = rotated_kk_img.get_rect(center=kk_rct.center)
+        screen.blit(rotated_kk_img, rotated_kk_rct)
 
         # 爆弾の移動処理
         bb_rct.move_ip(vx, vy)
