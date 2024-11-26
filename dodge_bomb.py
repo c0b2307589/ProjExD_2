@@ -153,7 +153,7 @@ def main():
         screen.blit(kk_img, kk_rct)
 
         # 爆弾サイズの変化
-        bb_img = bb_imgs[min(tmr // 500, 9)]
+        bb_img = bb_imgs[min(tmr // 500, 9)]  #サイズを変更している
         bb_acc = bb_accs[min(tmr // 500, 9)]  # 時間経過で爆弾の速度を変化
         avx = vx * bb_acc
         avy = vy * bb_acc
