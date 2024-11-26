@@ -1,72 +1,117 @@
 import os
+import time
 import random
 import sys
 import pygame as pg
-
+import math
 
 WIDTH, HEIGHT = 1100, 650
 DELTA = {
-    pg.K_UP: (0, -5),
-    pg.K_DOWN: (0, 5),
-    pg.K_LEFT: (-5, 0),
-    pg.K_RIGHT: (5, 0),
+    pg.K_UP: (0,-5),
+    pg.K_DOWN: (0,+5),
+    pg.K_LEFT: (-5,0),
+    pg.K_RIGHT: (+5,0),
 }
-
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 
-def check_bound(rct: pg.Rect) -> tuple[bool, bool]:
+def check_bound(rct: pg.rect) -> tuple[bool,bool]:
     """
-    引数で与えられたRectが画面の中か外か判定
-    引数：こうかとんRect or 爆弾Rect
-    戻り値：真理値タプル（横, 縦）/ 画面内True, 画面外False
+    引数で与えたRectが画面の中か外かを判断する
+    引数:こうかとんのRect or 爆弾Rect 
+    戻り値：真理値タプル(横,縦)/画面内:True,画面外:False
     """
     yoko, tate = True, True
     if rct.left < 0 or WIDTH < rct.right:
         yoko = False
     if rct.top < 0 or HEIGHT < rct.bottom:
         tate = False
+
     return yoko, tate
-
-
-def game_over(screen: pg.Surface) -> None:
+    
+def gameover(screen :pg.Surface) -> None:
     """
     ゲームオーバー時に画面に「Game Over」を表示し、泣いているこうかとんを描画する。
     引数：screen - 描画するスクリーンSurface
     """
-    # 半透明の黒い背景
-    overlay = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
-    overlay.fill((0, 0, 0, 150))
-    screen.blit(overlay, (0, 0))
+    # ブラックアウト用の半透明Surface
+    overlay = pg.Surface(screen.get_size())
+    overlay.set_alpha(210)  # 半透明度設定
+    overlay.fill((0, 0, 0))  # 黒色で塗りつぶす
+    screen.blit(overlay, (0, 0))  # 画面に重ねる
     
     # "Game Over" テキストの描画
-    font = pg.font.Font(None, 120)
-    text = font.render("Game Over", True, (255, 0, 0))
-    text_rect = text.get_rect(center=(WIDTH // 2, HEIGHT // 3))
-    screen.blit(text, text_rect)
+    font = pg.font.Font(None, 80)
+    text = font.render("GAME OVER", True, (255, 255, 255))
     
-    # 泣いているこうかとんを描画
-    kk_cry_img = pg.transform.rotozoom(pg.image.load("fig/9.png"), 0, 0.9)  # 泣いているこうかとん画像
-    kk_cry_left_rect = kk_cry_img.get_rect(midright=(text_rect.left - 20, text_rect.centery)) #左側のこうかとん
-    screen.blit(kk_cry_img,kk_cry_left_rect)
-    kk_cry_right_rect = kk_cry_img.get_rect(midleft=(text_rect.right + 20, text_rect.centery)) #右側のこうかとん
-    screen.blit(kk_cry_img,kk_cry_right_rect)
-
-    
+    # 泣いているこうかとん画像（8.png）を読み込む
+    crying_kk_img = pg.transform.rotozoom(pg.image.load("fig/8.png"), 0, 0.9)
+    # 左右にこうかとんを表示する座標
+    left_pos = (WIDTH // 4 - crying_kk_img.get_width() // 2, HEIGHT // 2 - crying_kk_img.get_height() // 2)
+    right_pos = (3 * WIDTH // 4 - crying_kk_img.get_width() // 2, HEIGHT // 2 - crying_kk_img.get_height() // 2)
+    # ブラックアウトのための半透明Surface
+    blackout = pg.Surface((WIDTH, HEIGHT))
+    blackout.fill((0, 0, 0))
+    blackout.set_alpha(210)
+    # 半透明の黒い四角を画面に描画（ブラックアウト） 
+    screen.blit(blackout, (0, 0))
+    # ブラックアウト後にこうかとんとテキストを描画
+    screen.blit(crying_kk_img, left_pos)
+    screen.blit(crying_kk_img, right_pos)
+    screen.blit(text, (WIDTH // 2 - 150, HEIGHT // 2 - 40))
+    # 描画を更新して5秒間表示
     pg.display.update()
-    pg.time.wait(5000)  # 5秒間停止
-
+    time.sleep(5)  # 5秒間停止
 
 def init_bb_imgs() -> tuple[list[pg.Surface], list[int]]:
     """
-    サイズの異なる爆弾Surfaceを要素としたリストと加速度リストを返す。
+    時間経過によってサイズが異なる爆弾Surfaceのリストと加速度リストを返す。
+    戻り値: (爆弾Surfaceリスト, 加速度リスト)
     """
-    bb_imgs = [pg.Surface((size, size), pg.SRCALPHA) for size in range(10, 110, 10)]
-    for i, img in enumerate(bb_imgs):
-        pg.draw.circle(img, (255, 0, 0), (img.get_width() // 2, img.get_height() // 2), img.get_width() // 2)
-    bb_accs = [i for i in range(1, 11)]
+    bb_imgs = []
+    bb_accs = [a for a in range(1, 11)]
+    for r in range(1, 11):
+        bb_img = pg.Surface((20 * r, 20 * r), pg.SRCALPHA)
+        pg.draw.circle(bb_img, (255, 0, 0), (10 * r, 10 * r), 10 * r)
+        bb_imgs.append(bb_img)
     return bb_imgs, bb_accs
 
+def get_kk_img(sum_mv: tuple[int, int]) -> pg.Surface:
+    """
+    引数で与えられた移動量の合計値に対応するこうかとんの向きを表す画像Surfaceを返す。
+    引数：sum_mv - 移動量タプル（例：(5, 0)など）
+    戻り値：移動方向に対応するこうかとんの画像Surface
+    """
+    kk_images = {
+    (0, -5): pg.transform.rotozoom(pg.image.load("fig/3.png"), -90, 1),  # 上
+    (0, 5): pg.transform.rotozoom(pg.image.load("fig/3.png"), 90, 1),  # 下
+    (-5, 0): pg.transform.rotozoom(pg.image.load("fig/3.png"), 0, 1),  # 左
+    (5, 0): pg.transform.flip(pg.transform.rotozoom(pg.image.load("fig/3.png"), 0, 1), True, False),  # 右（反転）
+    (5, -5): pg.transform.flip(pg.transform.rotozoom(pg.image.load("fig/3.png"), -45, 1), True, False),  # 右上（反転）
+    (-5, 5): pg.transform.rotozoom(pg.image.load("fig/3.png"), 45, 1),  # 左下
+    (-5, -5): pg.transform.rotozoom(pg.image.load("fig/3.png"), -45, 1),  # 左上
+    (5, 5): pg.transform.flip(pg.transform.rotozoom(pg.image.load("fig/3.png"), 45, 1), True, False),  # 右下（反転）
+}
+    # sum_mvが指定されていない場合のデフォルト（上向き）
+    return kk_images.get(sum_mv, pg.transform.rotozoom(pg.image.load("fig/3.png"), 0, 1))
+
+def calc_orientation(org: pg.Rect, dst: pg.Rect, current_xy: tuple[float, float]) -> tuple[float, float]:
+    """
+    orgから見て、dstがどこにあるかを計算し、方向ベクトルを返す
+    引数：org - 始点Rect
+          dst - 終点Rect
+          current_xy - 現在の移動速度ベクトル
+    戻り値：方向ベクトル (vx, vy)
+    """
+    dx = dst.centerx - org.centerx
+    dy = dst.centery - org.centery
+    norm = math.sqrt(dx**2 + dy**2)  # ノルム（距離）
+    if norm != 0:  # 距離が0でないときにのみ正規化
+        vx = dx / norm * 5  # 速度調整（5は速度の係数）
+        vy = dy / norm * 5
+    else:
+        vx, vy = 0, 0
+    return vx, vy
 
 def main():
     pg.display.set_caption("逃げろ！こうかとん")
@@ -75,82 +120,59 @@ def main():
     kk_img = pg.transform.rotozoom(pg.image.load("fig/3.png"), 0, 0.9)
     kk_rct = kk_img.get_rect()
     kk_rct.center = 300, 200
-
     bb_imgs, bb_accs = init_bb_imgs()
-    bb_img = bb_imgs[0]
-    bb_rct = bb_img.get_rect()
+
+    # 爆弾初期設定
+    bb_rct = bb_imgs[0].get_rect()  # 爆弾rectの初期設定
     bb_rct.centerx = random.randint(0, WIDTH)
     bb_rct.centery = random.randint(0, HEIGHT)
-    vx, vy = +5, +5  # 爆弾速度ベクトル
+    vx, vy = +5, -5  # 爆弾移動ベクトル
 
+    # ゲームループ
     clock = pg.time.Clock()
     tmr = 0
-    muki = 0
-    sayu = False
-    
-
-
-
     while True:
         for event in pg.event.get():
             if event.type == pg.QUIT: 
                 return
-        
-        if kk_rct.colliderect(bb_rct):
-            game_over(screen)  # ゲームオーバー画面を表示
-            return
 
         screen.blit(bg_img, [0, 0]) 
 
-        # こうかとんの移動処理
         key_lst = pg.key.get_pressed()
         sum_mv = [0, 0]
         for key, tpl in DELTA.items():
             if key_lst[key]:
-
                 sum_mv[0] += tpl[0]
                 sum_mv[1] += tpl[1]
-                if tpl == (0, -5):  # 上
-                    muki = 0
-                elif tpl == (-5,-5):  #左上
-                    muki = -45
-                elif tpl == (0, 5):  # 下
-                    muki = 180
-                elif tpl == (-5,5):
-                    muki = -225
-                elif tpl == (-5,0):  #左
-                    muki = 0
-                elif tpl == (5, 0):  # 右
-                    muki = -180
-    
+
+        kk_img = get_kk_img(tuple(sum_mv))
+        vx, vy = calc_orientation(bb_rct, kk_rct, (vx, vy))
         kk_rct.move_ip(sum_mv)
         if check_bound(kk_rct) != (True, True):
             kk_rct.move_ip(-sum_mv[0], -sum_mv[1])
-        
-        rotated_kk_img = pg.transform.rotate(kk_img,muki)
-        rotated_kk_rct = rotated_kk_img.get_rect(center=kk_rct.center)
-        screen.blit(rotated_kk_img, rotated_kk_rct)
+        screen.blit(kk_img, kk_rct)
 
-        # 爆弾の移動処理
-        bb_rct.move_ip(vx, vy)
+        # 爆弾サイズの変化
+        bb_img = bb_imgs[min(tmr // 500, 9)]
+        bb_acc = bb_accs[min(tmr // 500, 9)]  # 時間経過で爆弾の速度を変化
+        avx = vx * bb_acc
+        avy = vy * bb_acc
+        bb_rct.move_ip(avx, avy)
+
         yoko, tate = check_bound(bb_rct)
+        if kk_rct.colliderect(bb_rct):
+            gameover(screen)
+            return
+
         if not yoko:
             vx *= -1
         if not tate:
             vy *= -1
-        
-        # 爆弾のサイズと速度の上昇
-        bb_img = bb_imgs[min(tmr // 500, 9)]  # サイズは最大で9番目まで
-        bb_rct = bb_img.get_rect(center=bb_rct.center)
-        vx = bb_accs[min(tmr // 500, 9)] * (1 if vx > 0 else -1)
-        vy = bb_accs[min(tmr // 500, 9)] * (1 if vy > 0 else -1)
 
         screen.blit(bb_img, bb_rct)
-
         pg.display.update()
         tmr += 1
         clock.tick(50)
-
 
 if __name__ == "__main__":
     pg.init()
